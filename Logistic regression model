@@ -1,0 +1,74 @@
+#finalised model
+import pandas as pd
+import matplotlib.pyplot as plt
+import string
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from imblearn.over_sampling import SMOTE 
+from sklearn import metrics
+from sklearn.metrics import confusion_matrix
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score,recall_score,f1_score
+lemma_map = {
+    "feeling": "feel", "feelings": "feel", "felt": "feel", "feels": "feel",
+    "crying": "cry", "cries": "cry",
+    "sleeping": "sleep", "sleeps": "sleep",
+    "eating": "eat", "eats": "eat", "ate": "eat",
+    "tearing": "tear", "tearful": "tear",
+    "ugly": "unattractive", 
+    "worthless": "worthless", 
+    "sad": "sad",
+    "guilt": "guilty",
+}
+def simple_lemmatize(text):
+    if isinstance(text, str):
+        words = text.lower().split()
+        lemmatized = [lemma_map.get(word, word) for word in words]
+        return ' '.join(lemmatized)
+    return text
+columns=['Age','Feeling sad or Tearful','Irritable towards baby & partner','Trouble sleeping at night','Problems concentrating or making decision','Overeating or loss of appetite','Feeling of guilt','Problems of bonding with baby','Harming myself','Feeling worthless','Lost interest in enjoying things','Feels ugly']
+
+df=pd.read_csv('post_partum.csv')
+df.fillna("No", inplace=True)
+
+X1=df[columns].applymap(lambda x: x.lower().translate(str.maketrans('', '', string.punctuation)) if isinstance(x,str)else x)
+X=X1.applymap(simple_lemmatize)
+y=df['Feeling anxious']
+X_encoded=pd.get_dummies(X).astype(int)
+l=LabelEncoder()
+y_encoded=l.fit_transform(y)
+X_train, X_test, y_train, y_test=train_test_split(X_encoded,y_encoded,test_size=0.2,random_state=42)
+smote=SMOTE(random_state=42)
+X_train_resampled,y_train_resampled=smote.fit_resample(X_train,y_train)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train_resampled)
+X_test_scaled = scaler.transform(X_test)
+logreg=LogisticRegression()
+logreg.fit(X_train_scaled,y_train_resampled)
+y_pred=logreg.predict(X_test_scaled)
+cm=confusion_matrix(y_test,y_pred)
+cm_display=metrics.ConfusionMatrixDisplay(confusion_matrix=cm,display_labels=[1,0])
+accuracy=accuracy_score(y_test,y_pred)
+precision=precision_score(y_test,y_pred)
+recall=recall_score(y_test,y_pred)
+f1=f1_score(y_test,y_pred)
+print(f"accuracy: {accuracy*100}%")
+print(f"precision: {precision*100}%")
+print(f"recall score: {recall*100}%")
+print(f"f1 score: {f1*100}%")
+print("Confusion matrix:")
+#print(cm)
+cm_display.plot()
+
+importances = np.abs(logreg.coef_[0])
+indices = np.argsort(importances)[::-1]
+
+plt.figure(figsize=(12,6))
+plt.title("Feature Importances from Logistic Regression (|Coefficients|)")
+plt.bar(range(len(importances)), importances[indices], align='center')
+plt.xticks(range(len(importances)), X_encoded.columns[indices], rotation=90)
+plt.ylabel("Absolute Coefficient Value")
+plt.tight_layout()
+plt.show()
